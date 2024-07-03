@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 import re
 import requests
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -11,9 +12,13 @@ import numpy as np
 import pandas as pd
 from dash import Dash, dcc, html, Input, Output, State
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import euclidean_distances
 import pickle
 
+load_dotenv()
+
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
 with open("chunks.pickle", "rb") as f:
     chunks = pickle.load(f)
@@ -29,7 +34,7 @@ with open("embedding.pickle", "rb") as f:
 
 
 pca = PCA(n_components=2)
-all_embeddings_2d = pca.fit_transform(all_embeddings)
+tsne = TSNE(n_components=2, verbose=1, perplexity=7, n_iter=300)
 
 app = Dash(__name__)
 
@@ -64,7 +69,6 @@ app.layout = html.Div([
 )
 def update_output(n_clicks,algo, question):
     if n_clicks > 0 and question:
-        print(algo)
         answer = qa_chain.run(question)
         
         docs = vectorstore.similarity_search(question, k=3)
@@ -72,8 +76,21 @@ def update_output(n_clicks,algo, question):
         
         question_embedding = embeddings.embed_documents([question])[0]
         answer_embedding = embeddings.embed_documents([answer])[0]
-        
-        qa_embeddings_2d = pca.transform([question_embedding, answer_embedding])
+
+        documents_count = len(all_embeddings)
+        all_embeddings_temp = all_embeddings.copy()
+        all_embeddings_temp.append(question_embedding)
+        all_embeddings_temp.append(answer_embedding)
+
+        if algo == "PCA":
+            all_embeddings_temp_tran = pca.fit_transform(all_embeddings_temp)
+            all_embeddings_2d = all_embeddings_temp_tran[:documents_count]
+            qa_embeddings_2d = all_embeddings_temp_tran[documents_count:]
+        elif algo == "T-SNE":
+            all_embeddings_temp_tran = tsne.fit_transform(np.array(all_embeddings_temp))
+            all_embeddings_2d = all_embeddings_temp_tran[:documents_count]
+            qa_embeddings_2d = all_embeddings_temp_tran[documents_count:]
+            
         
         distances = euclidean_distances([question_embedding], all_embeddings)[0]
         print(distances)
