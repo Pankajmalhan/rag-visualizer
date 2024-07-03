@@ -34,7 +34,7 @@ with open("embedding.pickle", "rb") as f:
 
 
 pca = PCA(n_components=2)
-tsne = TSNE(n_components=2, verbose=1, perplexity=7, n_iter=300)
+tsne = TSNE(n_components=2, verbose=1, perplexity=50, n_iter=300)
 
 app = Dash(__name__)
 
@@ -71,7 +71,7 @@ def update_output(n_clicks,algo, question):
     if n_clicks > 0 and question:
         answer = qa_chain.run(question)
         
-        docs = vectorstore.similarity_search(question, k=3)
+        docs = vectorstore.similarity_search(question, k=5)
         doc_texts = [doc.page_content for doc in docs]
         
         question_embedding = embeddings.embed_documents([question])[0]
