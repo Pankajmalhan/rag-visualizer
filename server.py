@@ -15,6 +15,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.metrics.pairwise import euclidean_distances
 import pickle
+import umap
 
 load_dotenv()
 
@@ -25,9 +26,10 @@ with open("chunks.pickle", "rb") as f:
 
 embeddings = OpenAIEmbeddings()
 vectorstore = FAISS.from_texts(chunks, embeddings)
+retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
 
 llm = OpenAI(temperature=0)
-qa_chain = RetrievalQA.from_chain_type(llm, retriever=vectorstore.as_retriever())
+qa_chain = RetrievalQA.from_chain_type(llm, retriever=retriever)
 
 with open("embedding.pickle", "rb") as f:
     all_embeddings = pickle.load(f)
@@ -71,7 +73,7 @@ def update_output(n_clicks,algo, question):
     if n_clicks > 0 and question:
         answer = qa_chain.run(question)
         
-        docs = vectorstore.similarity_search(question, k=5)
+        docs = retriever.invoke(question)
         doc_texts = [doc.page_content for doc in docs]
         
         question_embedding = embeddings.embed_documents([question])[0]
@@ -88,6 +90,11 @@ def update_output(n_clicks,algo, question):
             qa_embeddings_2d = all_embeddings_temp_tran[documents_count:]
         elif algo == "T-SNE":
             all_embeddings_temp_tran = tsne.fit_transform(np.array(all_embeddings_temp))
+            all_embeddings_2d = all_embeddings_temp_tran[:documents_count]
+            qa_embeddings_2d = all_embeddings_temp_tran[documents_count:]
+        elif algo == "UMAP":
+            reducer = umap.UMAP()
+            all_embeddings_temp_tran = reducer.fit_transform(np.array(all_embeddings_temp))
             all_embeddings_2d = all_embeddings_temp_tran[:documents_count]
             qa_embeddings_2d = all_embeddings_temp_tran[documents_count:]
             
@@ -133,7 +140,7 @@ def update_output(n_clicks,algo, question):
             y=df[df['type'] == 'Retrieved']['y'],
             mode='markers',
             name='Retrieved',
-            marker=dict(size=df[df['type'] == 'Retrieved']['size'] * 1.5, color='green'),
+            marker=dict(size=df[df['type'] == 'Retrieved']['size'] * 1, color='green'),
             text=df[df['type'] == 'Retrieved']['text'],
             hoverinfo='text'
         ))
